@@ -1,13 +1,13 @@
 import csv
 import datetime
-import time
 import glob
 import logging
 import os
 import re
 import shutil
-from multiprocessing import Pool, log_to_stderr
+import time
 from collections import defaultdict
+from multiprocessing import Pool, log_to_stderr
 
 import geopandas
 import gspread_pandas
@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG, filename='log.txt',
 # Example: 2019 would give crop plans for FALL 19 and SPRING 20
 year = 2019
 
-secret_filepath = r'C:\Users\loyod\Documents\Work Projects'
+secret_filepath = r'F:\Farm\FarmDataAutomation'
 secret_filename = 'SMS_secret.json'
 
 
@@ -197,6 +197,24 @@ def get_noboundary_files(fields):
     # os.startfile("NEED BOUNDARY.txt")
     return fields
 
+def sort_chunks(directory):
+    files = os.listdir(directory)
+    import_size = len(files)
+    print(import_size)
+    max_folder_size = 2500
+    folders = np.ceil(import_size/max_folder_size)
+    n = np.int(5 * np.ceil((import_size / folders)/5))
+    files = [files[i * n:(i+1)*n] for i in range((len(files) + n -1) // n)]
+    g = 1
+    for i in files:
+        try:
+            os.mkdir(os.path.join(par_dir,f'Crop Plans {g}'))
+            new_dir = os.path.join(par_dir, f'Crop Plans {g}')
+        except FileExistsError:
+            pass
+        for f in i:
+            os.rename(os.path.join(directory,f), os.path.join(new_dir, f))
+        g+=1
 
 def main():
     # Always creating crop plans for one year ahead of current year
@@ -270,28 +288,23 @@ def main():
     # # # # # Makes the CROP PLAN directory, sort files into this directory, then splits into chunks to go back to SMS
 
 
+
 if __name__ == "__main__":
     credentials = gspread_pandas.conf.get_creds(config=gspread_pandas.conf.get_config(conf_dir=secret_filepath, file_name=secret_filename),
                                                 creds_dir=secret_filepath)
     client = gspread_pandas.spread.Spread(
         spread='SMI Master Field Sheet', creds=credentials)
 
-    # df = clean_master_sheet()
+    df = clean_master_sheet()
 
-    # logging.info(f'{df.head(2)}')
+    logging.info(f'{df.head(2)}')
 
-    # """Dictionary to replace planned crops with standardized names for SMS
-    #         You can add more by inserting a comma then writing a new key:value pair.
-    #         The key is before the colon and is what you are trying to replace.
-    #         The value is after the colon and that is what you are replacing every instance of the key with.
-    #         e.g. in the code below "CC BARLEY" gets replaced with "BARLEY" """
+    """Dictionary to replace planned crops with standardized names for SMS
+            You can add more by inserting a comma then writing a new key:value pair.
+            The key is before the colon and is what you are trying to replace.
+            The value is after the colon and that is what you are replacing every instance of the key with.
+            e.g. in the code below "CC BARLEY" gets replaced with "BARLEY" """
 
-    # df = df.replace(
-    #     {
-    #         "CC BARLEY": "COVER CROP",
-    #         "BARLEY/CLOVER": "COVER CROP",
-    #         "BARLEY/CLOVER/RADISH": "COVER CROP",
-    #         "CC OATS": "COVER CROP",
-    #     })
+    print(df['FALL2019'].unique())
 
-    main()
+    # main()
