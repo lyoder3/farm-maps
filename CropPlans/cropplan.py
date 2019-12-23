@@ -1,5 +1,6 @@
 import csv
 import datetime
+import time
 import glob
 import logging
 import os
@@ -14,63 +15,19 @@ import numpy as np
 import pandas as pd
 
 logging.basicConfig(level=logging.DEBUG, filename='log.txt',
-    format='%(asctime)s:%(levelname)s:%(message)s')
+                    format='%(asctime)s:%(levelname)s:%(message)s')
 # type the year you want to do crop plans for here
 # Example: 2019 would give crop plans for FALL 19 and SPRING 20
 year = 2019
 
-secret_filepath = r'F:\Farm\FarmDataAutomation'
+secret_filepath = r'C:\Users\loyod\Documents\Work Projects'
 secret_filename = 'SMS_secret.json'
-working_directory = r'F:\Farm\FarmDataAutomation\CROP PLANS'
-
-
-
-
-
-def sort_chunks(path):
-    abs_dirname = os.path.abspath(path)
-    files = [os.path.join(abs_dirname, f) for f in os.listdir(abs_dirname)]
-    i = 0
-    curr_subdir = None
-
-    import_size = len(files)
-    n_chunks = np.ceil(import_size / 2500)
-    N = int(5 * np.ceil((import_size / n_chunks) / 5))
-    for f in files:
-        # create new subdir if necessary
-        if i % N == 0:
-            subdir_name = os.path.join(abs_dirname, f"{i/N + 1}")
-            os.mkdir(subdir_name)
-            curr_subdir = subdir_name
-
-        # move file to current dir
-        f_base = os.path.basename(f)
-        shutil.move(f, os.path.join(subdir_name, f_base))
-        i += 1
 
 
 def mergedfs(geodf, df):
     geodf["tmp"] = 1
     df["tmp"] = 1
     return pd.merge(geodf, df, on="tmp")
-
-
-def unpack_folders(dest_dir):
-    walker = os.walk(dest_dir)
-
-    rem_dirs = walker.__next__()[1]
-
-    for data in walker:
-        for files in data[2]:
-            try:
-                shutil.move(data[0] + os.sep + files, dest_dir)
-            except shutil.Error:
-                continue
-    time.sleep(1)
-    for dir in rem_dirs:
-        if re.search(".vscode", dir):
-            continue
-        shutil.rmtree(dest_dir + os.sep + dir)
 
 
 def sort_farm_field():
@@ -85,11 +42,13 @@ def sort_farm_field():
             yield tag, file
     logging.info(f'Completed sorting by farm and field.')
 
+
 def clean_master_sheet():
-    df = client.sheet_to_df(sheet=0, header_rows=1,index=0)
+    df = client.sheet_to_df(sheet=0, header_rows=1, index=0)
     cols = df.columns.to_list()
-    new_cols = cols[cols.index("Farm Name") : cols.index("Field") + 1]
-    ix = (cols[cols.index(f"{year + 1} SPRING")], cols[cols.index(f"{year} FALL")])
+    new_cols = cols[cols.index("Farm Name"): cols.index("Field") + 1]
+    ix = (cols[cols.index(f"{year + 1} SPRING")],
+          cols[cols.index(f"{year} FALL")])
     new_cols.extend(ix)
     df = df[new_cols]
     df.rename(
@@ -113,11 +72,13 @@ def clean_master_sheet():
     df = df.set_index(["Farm", "Field"])
     return df
 
+
 def write_csvs(df):
     logging.info('Starting to write CSVs.')
 
     spring_fields = [
-        (row[0][0], row[0][1], row[1], row[3], f"{year + 1}", 'Planting - Spring')
+        (row[0][0], row[0][1], row[1], row[3],
+         f"{year + 1}", 'Planting - Spring')
         for row in df.itertuples()
         if row[1] != "None"
     ]
@@ -130,7 +91,6 @@ def write_csvs(df):
     ]
 
     logging.debug(f'The last fall crop was {fall_fields[-1]}.')
-
 
     for i in spring_fields:
         file_name = i[0] + "_" + i[1] + "_" + f"{year + 1}SPRING" + ".csv"
@@ -152,7 +112,8 @@ def write_csvs(df):
 
 
 def make_dfs(fields):
-    fall = [field for field in fields if any(f.endswith("FALL.csv") for f in field)]
+    fall = [field for field in fields if any(
+        f.endswith("FALL.csv") for f in field)]
     print(len(fall))
     spring = [
         field
@@ -191,34 +152,38 @@ def make_dfs(fields):
                 geodf = geopandas.read_file(f)
         mergedfs(geodf, sdf).to_file(sout)
 
+
 def delete_extra_boundaries(fields):
     logging.info('Beginning to remove fields with no boundary files.')
-    i=0
-    with open ('No Planned Crops.txt', 'w+', newline='\n') as f:
+    i = 0
+    with open('No Planned Crops.txt', 'w+', newline='\n') as f:
         for field in fields:
             if any(i.endswith(".csv") for i in field):
                 continue
             else:
-                f.write("%s\n" % field[0])             
+                f.write("%s\n" % field[0])
                 for a in field:
                     os.remove(a)
-                i+=1
+                i += 1
     logging.info(f'Completed removing {i} fields without planned crops.')
 
     # os.startfile('No Planned Crops.txt')
-    
+
     return fields
 
 
 def get_noboundary_files(fields):
-    logging.info('Beginning to find fields with planned crops and no boundaries.')
+    logging.info(
+        'Beginning to find fields with planned crops and no boundaries.')
 
     bad = []
-    no_boundary = [field for field in fields if all(f.endswith(".csv") for f in field)]
-    fields = [field for field in fields if any(f.endswith(".shp") for f in field)]
-    
-    rand_int = np.random.randint(0,326)
-    
+    no_boundary = [field for field in fields if all(
+        f.endswith(".csv") for f in field)]
+    fields = [field for field in fields if any(
+        f.endswith(".shp") for f in field)]
+
+    rand_int = np.random.randint(0, 326)
+
     logging.debug(f'There are {len(no_boundary)} fields without boundaries')
 
     logging.info(f'Example of a "good" field: {fields[rand_int]}')
@@ -235,7 +200,6 @@ def get_noboundary_files(fields):
 
 def main():
     # Always creating crop plans for one year ahead of current year
-
     """can put the directory where you have your boundary files at, but I usually just copy the script to that directory
         then open the script there along with the folder in VSCode that way you don't have to 
         fumble around with setting the working directory"""
@@ -249,23 +213,24 @@ def main():
 
     fields = sort_farm_field()
 
-
     d = {}
     for x, y in fields:
         d.setdefault(x, []).append(y)
 
     fields = list(d.values())
-    
-    random_int = np.random.randint(0,223)
 
-    logging.info(f'Completed sorting by field. Sample field: {fields[random_int]}')
-    
+    random_int = np.random.randint(0, 223)
+
+    logging.info(
+        f'Completed sorting by field. Sample field: {fields[random_int]}')
+
     # Removes the fields where there is no crop plan csv
     fields = delete_extra_boundaries(fields)
     # # joins the crop plans with the boundary shape files
     fields = get_noboundary_files(fields)
 
-    logging.debug(f'There are {len(fields)} fields to be made into crop plans.')
+    logging.debug(
+        f'There are {len(fields)} fields to be made into crop plans.')
 
     logging.debug(f'{fields[:50]}')
 
@@ -279,17 +244,17 @@ def main():
     for field in fields:
         for f in field:
             m = re.search(
-            r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2}|WHOLE FARM|ALL)(?=_\d{4}|_NO Year)",
-            f,
-        )
+                r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2}|WHOLE FARM|ALL)(?=_\d{4}|_NO Year)",
+                f,
+            )
             tag = m.group(1) + ' ' + m.group(2)
-        
+
             if f.endswith('.csv'):
                 csvs_dict[tag].append(f)
             else:
                 shp_dict[tag].append(f)
-    
-    for k,v in csvs_dict.items():
+
+    for k, v in csvs_dict.items():
         for i in v:
             file_name = os.path.basename(i)
             name, ext = os.path.splitext(file_name)
@@ -300,20 +265,19 @@ def main():
                     for f in value:
                         if f.endswith('.shp'):
                             geodf = geopandas.read_file(f)
-            mergedfs(geodf,df).to_file(out_file)
+            mergedfs(geodf, df).to_file(out_file)
 
     # # # # # Makes the CROP PLAN directory, sort files into this directory, then splits into chunks to go back to SMS
 
 
 if __name__ == "__main__":
-    # credentials = gspread_pandas.conf.get_creds(config=gspread_pandas.conf.get_config(conf_dir=secret_filepath,file_name=secret_filename),
-    #     creds_dir=secret_filepath)
-    # client = gspread_pandas.spread.Spread(spread='SMI Master Field Sheet', creds=credentials)
-    
-    
-    
+    credentials = gspread_pandas.conf.get_creds(config=gspread_pandas.conf.get_config(conf_dir=secret_filepath, file_name=secret_filename),
+                                                creds_dir=secret_filepath)
+    client = gspread_pandas.spread.Spread(
+        spread='SMI Master Field Sheet', creds=credentials)
+
     # df = clean_master_sheet()
-    
+
     # logging.info(f'{df.head(2)}')
 
     # """Dictionary to replace planned crops with standardized names for SMS
@@ -329,6 +293,5 @@ if __name__ == "__main__":
     #         "BARLEY/CLOVER/RADISH": "COVER CROP",
     #         "CC OATS": "COVER CROP",
     #     })
-
 
     main()
