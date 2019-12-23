@@ -305,6 +305,15 @@ if __name__ == "__main__":
             The value is after the colon and that is what you are replacing every instance of the key with.
             e.g. in the code below "CC BARLEY" gets replaced with "BARLEY" """
 
-    print(df['FALL2019'].unique())
+    df = df.replace(
+        {
+            "CC BARLEY": "COVER CROP",
+            "BARLEY/CLOVER": "COVER CROP",
+            "BARLEY/CLOVER/RADISH": "COVER CROP",
+            "CC OATS": "COVER CROP",
+        })
 
     # main()
+
+
+    
