@@ -42,7 +42,7 @@ def sort_boundaries():
     for f in os.listdir(f"{secret_filepath}\\boundaries"):
         f = os.path.join(f"{secret_filepath}\\boundaries", f)
         m = re.search(
-            r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2}|WHOLE FARM|ALL)(?=_\d{4}|_NO Year)",
+            r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2})(?=_\d{4}|_NO Year)",
             f,
         )
         if m:
@@ -120,12 +120,12 @@ def write_csvs(df):
 
 def make_cropplans_chunks(csvs, shapes):
     max_folder_size = 500
-    import_size = len(list(itertools.chain.from_iterable(csv_dict.values())))
+    import_size = len(list(itertools.chain.from_iterable(csvs.values())))
     folders = int(np.ceil(import_size / max_folder_size))
     n = int(5 * np.ceil((import_size / folders) / 5))
-    csv1 = [(k,v[0]) for k,v in csv_dict.items() if len(v) > 1]
-    csv2 = [(k,v[1]) for k,v in csv_dict.items() if len(v) > 1]
-    csv3 = [(k,v) for k,v in csv_dict.items() if len(v)==1]
+    csv1 = [(k,v[0]) for k,v in csvs.items() if len(v) > 1]
+    csv2 = [(k,v[1]) for k,v in csvs.items() if len(v) > 1]
+    csv3 = [(k,v) for k,v in csvs.items() if len(v)==1]
     csvs = csv1 + csv2 + csv3
     csvs = [csvs[i * n : (i + 1) * n] for i in range((len(csvs) + n - 1) // n)]
     for i in csvs:
@@ -138,7 +138,7 @@ def make_cropplans_chunks(csvs, shapes):
                 name, ext = os.path.splitext(file_name)
                 out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
                 df = pd.read_csv(x[1][0])
-                for k1, v1 in shp_dict.items():
+                for k1, v1 in shapes.items():
                     if x[0] == k1 and v1:
                         for f in v1:
                             if f.endswith(".shp"):
@@ -150,7 +150,7 @@ def make_cropplans_chunks(csvs, shapes):
                 name, ext = os.path.splitext(file_name)
                 out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
                 df = pd.read_csv(x[1])
-                for k1, v1 in shp_dict.items():
+                for k1, v1 in shapes.items():
                     if x[0] == k1 and v1:
                         for f in v1:
                             if f.endswith(".shp"):
@@ -200,7 +200,7 @@ def main():
 
     # Removes the fields where there is no crop plan csv
     # # # joins the crop plans with the boundary shape file
-    make_cropplans_chunks(shp_dict, csv_dict)
+    make_cropplans_chunks(csv_dict, shp_dict)
 
 if __name__ == "__main__":
     main()
