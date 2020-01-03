@@ -1,17 +1,11 @@
 import csv
-import datetime
-import glob
 import itertools
-import logging
 import os
 import re
-import shutil
-import time
 from collections import defaultdict
 
 import geopandas
 import gspread_pandas
-import numpy as np
 import pandas as pd
 
 year = 2019
@@ -21,17 +15,6 @@ secret_filename = "SMS_secret.json"
 working_dir = r"F:\Farm\FarmDataAutomation\CropPlans"
 os.chdir(working_dir)
 
-credentials = gspread_pandas.conf.get_creds(
-    config=gspread_pandas.conf.get_config(
-        conf_dir=secret_filepath, file_name=secret_filename
-    ),
-    creds_dir=secret_filepath,
-)
-client = gspread_pandas.spread.Spread(
-    spread="SMI Master Field Sheet", creds=credentials
-)
-
-
 def mergedfs(geodf, df):
     geodf["tmp"] = 1
     df["tmp"] = 1
@@ -39,7 +22,6 @@ def mergedfs(geodf, df):
 
 
 def sort_boundaries():
-    logging.info("Beginning to sort boundaries by farm and field.")
     shp_dict = defaultdict(list)
     for f in os.listdir(f"{secret_filepath}\\boundaries"):
         f = os.path.join(f"{secret_filepath}\\boundaries", f)
@@ -51,7 +33,6 @@ def sort_boundaries():
         else:
             print(f)
     return shp_dict
-    logging.info(f"Completed sorting by farm and field.")
 
 
 def clean_master_sheet():
@@ -84,14 +65,12 @@ def clean_master_sheet():
 
 
 def write_csvs(df):
-    logging.info("Starting to write CSVs.")
 
     spring_fields = [
         (row[0][0], row[0][1], row[1], row[3], f"{year + 1}", "Planting - Spring")
         for row in df.itertuples()
         if row[1] != "None"
     ]
-    logging.debug(f"The last spring crop was {spring_fields[-1]}.")
 
     fall_fields = [
         (row[0][0], row[0][1], row[2], row[3], f"{year}", "Planting - Autumn")
@@ -99,7 +78,6 @@ def write_csvs(df):
         if row[2] != "None"
     ]
 
-    logging.debug(f"The last fall crop was {fall_fields[-1]}.")
 
     for i in spring_fields:
         file_name = i[0] + "_" + i[1] + "_" + f"{year + 1}SPRING" + ".csv"
@@ -117,7 +95,6 @@ def write_csvs(df):
                 ["FARM", "FIELD_1", "PRODUCT_1", "GROWER", "YEAR", "SEASON"]
             )
             file_writer.writerow(i)
-    logging.info("Finished writing CSVs.")
 
 def check_fields_to_file(csvs, shapes):
     csvs = csvs.keys()
@@ -178,6 +155,15 @@ def make_cropplans_chunks(csvs, shapes):
 
 
 def main():
+    credentials = gspread_pandas.conf.get_creds(
+    config=gspread_pandas.conf.get_config(
+        conf_dir=secret_filepath, file_name=secret_filename
+    ),
+    creds_dir=secret_filepath,
+)
+    client = gspread_pandas.spread.Spread(
+    spread="SMI Master Field Sheet", creds=credentials
+)
     df = clean_master_sheet()
 
     """Dictionary to replace planned crops with standardized names for SMS
