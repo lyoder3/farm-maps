@@ -8,12 +8,12 @@ import re
 import shutil
 import time
 from collections import defaultdict
-from multiprocessing import Pool, log_to_stderr
 
 import geopandas
 import gspread_pandas
 import numpy as np
 import pandas as pd
+
 year = 2019
 
 secret_filepath = r"F:\Farm\FarmDataAutomation"
@@ -31,20 +31,19 @@ client = gspread_pandas.spread.Spread(
     spread="SMI Master Field Sheet", creds=credentials
 )
 
+
 def mergedfs(geodf, df):
     geodf["tmp"] = 1
     df["tmp"] = 1
     return pd.merge(geodf, df, on="tmp")
+
 
 def sort_boundaries():
     logging.info("Beginning to sort boundaries by farm and field.")
     shp_dict = defaultdict(list)
     for f in os.listdir(f"{secret_filepath}\\boundaries"):
         f = os.path.join(f"{secret_filepath}\\boundaries", f)
-        m = re.search(
-            r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2})(?=_\d{4}|_NO Year)",
-            f,
-        )
+        m = re.search(r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2})(?=_\d{4}|_NO Year)", f,)
         if m:
             tag = m.group(1) + "_" + m.group(2)
             if f.endswith((".shp", ".shx", ".dbf", ".prj")):
@@ -53,6 +52,7 @@ def sort_boundaries():
             print(f)
     return shp_dict
     logging.info(f"Completed sorting by farm and field.")
+
 
 def clean_master_sheet():
     df = client.sheet_to_df(sheet=0, header_rows=1, index=0)
@@ -81,6 +81,7 @@ def clean_master_sheet():
     )
     df = df.set_index(["Farm", "Field"])
     return df
+
 
 def write_csvs(df):
     logging.info("Starting to write CSVs.")
@@ -118,22 +119,40 @@ def write_csvs(df):
             file_writer.writerow(i)
     logging.info("Finished writing CSVs.")
 
+def check_fields_to_file(csvs, shapes):
+    csvs = csvs.keys()
+    shps = shapes.keys()
+
+    no_boundary = [i for i in csvs if i not in shps]
+    no_cropplans = [i for i in shps if i not in csvs]
+    
+    with open('No Boundary.txt', 'w+') as f:
+        for i in no_boundary:
+            f.write(f'{i}\n')
+    with open('No Planned Crops.txt', 'w+') as f:
+        for i in no_cropplans:
+            f.write(f'{i}\n')
+    for k,v in shapes.items():
+        if k in no_cropplans:
+            for f in v:
+                os.remove(f)
+                
 def make_cropplans_chunks(csvs, shapes):
     max_folder_size = 500
     import_size = len(list(itertools.chain.from_iterable(csvs.values())))
     folders = int(np.ceil(import_size / max_folder_size))
     n = int(5 * np.ceil((import_size / folders) / 5))
-    csv1 = [(k,v[0]) for k,v in csvs.items() if len(v) > 1]
-    csv2 = [(k,v[1]) for k,v in csvs.items() if len(v) > 1]
-    csv3 = [(k,v) for k,v in csvs.items() if len(v)==1]
+    csv1 = [(k, v[0]) for k, v in csvs.items() if len(v) > 1]
+    csv2 = [(k, v[1]) for k, v in csvs.items() if len(v) > 1]
+    csv3 = [(k, v) for k, v in csvs.items() if len(v) == 1]
     csvs = csv1 + csv2 + csv3
     csvs = [csvs[i * n : (i + 1) * n] for i in range((len(csvs) + n - 1) // n)]
     for i in csvs:
         n = csvs.index(i) + 1
-        os.makedirs(f'Crop Plans {n}', exist_ok = True)
+        os.makedirs(f"Crop Plans {n}", exist_ok=True)
         for x in i:
             if isinstance(x[1], list):
-                end_dir = os.path.join(os.getcwd(), f'Crop Plans {n}')
+                end_dir = os.path.join(os.getcwd(), f"Crop Plans {n}")
                 file_name = os.path.basename(x[1][0])
                 name, ext = os.path.splitext(file_name)
                 out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
@@ -145,7 +164,7 @@ def make_cropplans_chunks(csvs, shapes):
                                 geodf = geopandas.read_file(f)
                 mergedfs(geodf, df).to_file(out_file)
             else:
-                end_dir = os.path.join(os.getcwd(), f'Crop Plans {n}')
+                end_dir = os.path.join(os.getcwd(), f"Crop Plans {n}")
                 file_name = os.path.basename(x[1])
                 name, ext = os.path.splitext(file_name)
                 out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
@@ -157,6 +176,7 @@ def make_cropplans_chunks(csvs, shapes):
                                 geodf = geopandas.read_file(f)
                 mergedfs(geodf, df).to_file(out_file)
 
+
 def main():
     df = clean_master_sheet()
 
@@ -167,12 +187,15 @@ def main():
             e.g. in the code below "CC BARLEY" gets replaced with "BARLEY" """
 
     df = df.replace(
-        {
-            "CC BARLEY": "COVER CROP",
-            "BARLEY/CLOVER": "COVER CROP",
-            "BARLEY/CLOVER/RADISH": "COVER CROP",
-            "CC OATS": "COVER CROP",
-        }
+        [
+            "CC BARLEY",
+            "BARLEY/CLOVER",
+            "BARLEY/CLOVER/RADISH",
+            "CC OATS",
+            "BARLEY/DOUBLE CROP BEANS",
+            "WHEAT/BARLEY/RADISH",
+        ],
+        "COVER CROP",
     )
 
     # Always creating crop plans for one year ahead of current year
@@ -201,6 +224,7 @@ def main():
     # Removes the fields where there is no crop plan csv
     # # # joins the crop plans with the boundary shape file
     make_cropplans_chunks(csv_dict, shp_dict)
+
 
 if __name__ == "__main__":
     main()

@@ -23,6 +23,7 @@ dependencies:
   - colorama=0.4.3=py_0
   - cryptography=2.8=py37hb32ad35_1
   - curl=7.65.3=h4496350_0
+  - cycler=0.10.0=py_2
   - decorator=4.4.1=py_0
   - defusedxml=0.6.0=py_0
   - entrypoints=0.3=py37_1000
@@ -59,8 +60,11 @@ dependencies:
   - jupyter_client=5.3.3=py37_1
   - jupyter_console=6.0.0=py_0
   - jupyter_core=4.6.1=py37_0
+  - jupyterthemes=0.20.0=py_0
   - kealib=1.4.10=hf7dc31f_1005
+  - kiwisolver=1.1.0=py37he980bc4_0
   - krb5=1.16.4=hdd46e55_0
+  - lesscpy=0.13.0=py_1
   - libblas=3.8.0=14_mkl
   - libcblas=3.8.0=14_mkl
   - libclang=9.0.0=default_hf44288c_4
@@ -91,6 +95,8 @@ dependencies:
   - m2w64-libwinpthread-git=5.0.0.4634.697f757=2
   - m2w64-xz=5.2.2=2
   - markupsafe=1.1.1=py37hfa6e2cd_0
+  - matplotlib=3.1.2=py37_1
+  - matplotlib-base=3.1.2=py37h2981e6d_1
   - mistune=0.8.4=py37hfa6e2cd_1000
   - mkl=2019.4=245
   - more-itertools=8.0.2=py_0
@@ -112,6 +118,7 @@ dependencies:
   - pcre=8.43=h6538335_0
   - pickleshare=0.7.5=py37_1000
   - pip=19.3.1=py37_0
+  - ply=3.11=py_1
   - poppler=0.67.0=h1707e21_8
   - poppler-data=0.4.9=1
   - postgresql=12.1=h06f7779_0
@@ -124,6 +131,7 @@ dependencies:
   - pygments=2.5.2=py_0
   - pyjwt=1.7.1=py_0
   - pyopenssl=19.1.0=py37_0
+  - pyparsing=2.4.6=py_0
   - pyproj=2.4.2.post1=py37h9716dcf_0
   - pyqt=5.12.3=py37h6538335_1
   - pyrsistent=0.15.6=py37hfa6e2cd_0
