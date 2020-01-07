@@ -6,6 +6,7 @@ from collections import defaultdict
 
 import geopandas
 import gspread_pandas
+import numpy as np
 import pandas as pd
 
 year = 2019
@@ -15,27 +16,8 @@ secret_filename = "SMS_secret.json"
 working_dir = r"F:\Farm\FarmDataAutomation\CropPlans"
 os.chdir(working_dir)
 
-def mergedfs(geodf, df):
-    geodf["tmp"] = 1
-    df["tmp"] = 1
-    return pd.merge(geodf, df, on="tmp")
 
-
-def sort_boundaries():
-    shp_dict = defaultdict(list)
-    for f in os.listdir(f"{secret_filepath}\\boundaries"):
-        f = os.path.join(f"{secret_filepath}\\boundaries", f)
-        m = re.search(r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2})(?=_\d{4}|_NO Year)", f,)
-        if m:
-            tag = m.group(1) + "_" + m.group(2)
-            if f.endswith((".shp", ".shx", ".dbf", ".prj")):
-                shp_dict[tag].append(f)
-        else:
-            print(f)
-    return shp_dict
-
-
-def clean_master_sheet():
+def clean_master_sheet(client):
     df = client.sheet_to_df(sheet=0, header_rows=1, index=0)
     cols = df.columns.to_list()
     new_cols = cols[cols.index("Farm Name") : cols.index("Field") + 1]
@@ -61,8 +43,19 @@ def clean_master_sheet():
         lambda row: re.match(r"[HJS][OCRZ]", row.Farm).group(0), axis=1
     )
     df = df.set_index(["Farm", "Field"])
-    return df
 
+    df = df.replace(
+        [
+            "CC BARLEY",
+            "BARLEY/CLOVER",
+            "BARLEY/CLOVER/RADISH",
+            "CC OATS",
+            "BARLEY/DOUBLE CROP BEANS",
+            "WHEAT/BARLEY/RADISH",
+        ],
+        "COVER CROP",
+    )
+    return df
 
 def write_csvs(df):
 
@@ -96,6 +89,19 @@ def write_csvs(df):
             )
             file_writer.writerow(i)
 
+def sort_boundaries():
+    shp_dict = defaultdict(list)
+    for f in os.listdir(f"{secret_filepath}\\boundaries"):
+        f = os.path.join(f"{secret_filepath}\\boundaries", f)
+        m = re.search(r"([HJS][OCR][A-Z\W]+)(?:_)([CP]\d{2})(?=_\d{4}|_NO Year)", f,)
+        if m:
+            tag = m.group(1) + "_" + m.group(2)
+            if f.endswith((".shp", ".shx", ".dbf", ".prj")):
+                shp_dict[tag].append(f)
+        else:
+            print(f)
+    return shp_dict
+
 def check_fields_to_file(csvs, shapes):
     csvs = csvs.keys()
     shps = shapes.keys()
@@ -113,7 +119,12 @@ def check_fields_to_file(csvs, shapes):
         if k in no_cropplans:
             for f in v:
                 os.remove(f)
-                
+
+def mergedfs(geodf, df):
+    geodf["tmp"] = 1
+    df["tmp"] = 1
+    return pd.merge(geodf, df, on="tmp")
+
 def make_cropplans_chunks(csvs, shapes):
     max_folder_size = 500
     import_size = len(list(itertools.chain.from_iterable(csvs.values())))
@@ -159,12 +170,11 @@ def main():
     config=gspread_pandas.conf.get_config(
         conf_dir=secret_filepath, file_name=secret_filename
     ),
-    creds_dir=secret_filepath,
-)
-    client = gspread_pandas.spread.Spread(
-    spread="SMI Master Field Sheet", creds=credentials
-)
-    df = clean_master_sheet()
+    creds_dir=secret_filepath,)
+
+    client = gspread_pandas.spread.Spread(spread="SMI Master Field Sheet", creds=credentials)
+
+    df = clean_master_sheet(client)
 
     """Dictionary to replace planned crops with standardized names for SMS
             You can add more by inserting a comma then writing a new key:value pair.
@@ -209,6 +219,7 @@ def main():
 
     # Removes the fields where there is no crop plan csv
     # # # joins the crop plans with the boundary shape file
+    check_fields_to_file(csv_dict, shp_dict)
     make_cropplans_chunks(csv_dict, shp_dict)
 
 
