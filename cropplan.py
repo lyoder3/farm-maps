@@ -2,7 +2,10 @@ import csv
 import itertools
 import os
 import re
+import time
+import datetime
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 
 import geopandas
 import gspread_pandas
@@ -15,6 +18,7 @@ secret_filepath = r"F:\Farm\FarmDataAutomation"
 secret_filename = "SMS_secret.json"
 working_dir = r"F:\Farm\FarmDataAutomation\CropPlans"
 os.chdir(working_dir)
+
 
 
 def clean_master_sheet(client):
@@ -57,6 +61,7 @@ def clean_master_sheet(client):
     )
     return df
 
+
 def write_csvs(df):
 
     spring_fields = [
@@ -70,7 +75,6 @@ def write_csvs(df):
         for row in df.itertuples()
         if row[2] != "None"
     ]
-
 
     for i in spring_fields:
         file_name = i[0] + "_" + i[1] + "_" + f"{year + 1}SPRING" + ".csv"
@@ -89,6 +93,7 @@ def write_csvs(df):
             )
             file_writer.writerow(i)
 
+
 def sort_boundaries():
     shp_dict = defaultdict(list)
     for f in os.listdir(f"{secret_filepath}\\boundaries"):
@@ -102,30 +107,57 @@ def sort_boundaries():
             print(f)
     return shp_dict
 
+
 def check_fields_to_file(csvs, shapes):
     csvs = csvs.keys()
     shps = shapes.keys()
 
     no_boundary = [i for i in csvs if i not in shps]
     no_cropplans = [i for i in shps if i not in csvs]
-    
-    with open('No Boundary.txt', 'w+') as f:
+
+    with open("No Boundary.txt", "w+") as f:
         for i in no_boundary:
-            f.write(f'{i}\n')
-    with open('No Planned Crops.txt', 'w+') as f:
+            f.write(f"{i}\n")
+    with open("No Planned Crops.txt", "w+") as f:
         for i in no_cropplans:
-            f.write(f'{i}\n')
-    for k,v in shapes.items():
+            f.write(f"{i}\n")
+    for k, v in shapes.items():
         if k in no_cropplans:
             for f in v:
                 os.remove(f)
+
 
 def mergedfs(geodf, df):
     geodf["tmp"] = 1
     df["tmp"] = 1
     return pd.merge(geodf, df, on="tmp")
 
-def make_cropplans_chunks(csvs, shapes):
+
+def create_shape(x, shapes, n):
+    end_dir = os.path.join(os.getcwd(), f"Crop Plans {n}")
+    file_name = os.path.basename(x[1])
+    name, ext = os.path.splitext(file_name)
+    out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
+    df = pd.read_csv(x[1])
+    for k1, v1 in shapes.items():
+        if x[0] == k1 and v1:
+            for f in v1:
+                if f.endswith(".shp"):
+                    geodf = geopandas.read_file(f)
+    mergedfs(geodf, df).to_file(out_file)
+
+
+def make_files(csvs, shp_dict):
+    for i in csvs:
+        n = csvs.index(i) + 1
+        os.makedirs(f"Crop Plans {n}", exist_ok=True)
+        files = [x for x in i]
+        f = lambda lst: create_shape(lst, shp_dict, n)
+        with ThreadPoolExecutor() as executor:
+            executor.map(f, files)
+
+
+def make_chunks(csvs):
     max_folder_size = 500
     import_size = len(list(itertools.chain.from_iterable(csvs.values())))
     folders = int(np.ceil(import_size / max_folder_size))
@@ -135,44 +167,20 @@ def make_cropplans_chunks(csvs, shapes):
     csv3 = [(k, v) for k, v in csvs.items() if len(v) == 1]
     csvs = csv1 + csv2 + csv3
     csvs = [csvs[i * n : (i + 1) * n] for i in range((len(csvs) + n - 1) // n)]
-    for i in csvs:
-        n = csvs.index(i) + 1
-        os.makedirs(f"Crop Plans {n}", exist_ok=True)
-        for x in i:
-            if isinstance(x[1], list):
-                end_dir = os.path.join(os.getcwd(), f"Crop Plans {n}")
-                file_name = os.path.basename(x[1][0])
-                name, ext = os.path.splitext(file_name)
-                out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
-                df = pd.read_csv(x[1][0])
-                for k1, v1 in shapes.items():
-                    if x[0] == k1 and v1:
-                        for f in v1:
-                            if f.endswith(".shp"):
-                                geodf = geopandas.read_file(f)
-                mergedfs(geodf, df).to_file(out_file)
-            else:
-                end_dir = os.path.join(os.getcwd(), f"Crop Plans {n}")
-                file_name = os.path.basename(x[1])
-                name, ext = os.path.splitext(file_name)
-                out_file = os.path.join(end_dir, f"Crop Plans {name}.shp")
-                df = pd.read_csv(x[1])
-                for k1, v1 in shapes.items():
-                    if x[0] == k1 and v1:
-                        for f in v1:
-                            if f.endswith(".shp"):
-                                geodf = geopandas.read_file(f)
-                mergedfs(geodf, df).to_file(out_file)
+    return csvs
 
 
 def main():
     credentials = gspread_pandas.conf.get_creds(
-    config=gspread_pandas.conf.get_config(
-        conf_dir=secret_filepath, file_name=secret_filename
-    ),
-    creds_dir=secret_filepath,)
+        config=gspread_pandas.conf.get_config(
+            conf_dir=secret_filepath, file_name=secret_filename
+        ),
+        creds_dir=secret_filepath,
+    )
 
-    client = gspread_pandas.spread.Spread(spread="SMI Master Field Sheet", creds=credentials)
+    client = gspread_pandas.spread.Spread(
+        spread="SMI Master Field Sheet", creds=credentials
+    )
 
     df = clean_master_sheet(client)
 
@@ -220,8 +228,13 @@ def main():
     # Removes the fields where there is no crop plan csv
     # # # joins the crop plans with the boundary shape file
     check_fields_to_file(csv_dict, shp_dict)
-    make_cropplans_chunks(csv_dict, shp_dict)
+    csvs = make_chunks(csv_dict)
+    make_files(csvs, shp_dict)
 
 
 if __name__ == "__main__":
+    start = time.time()
     main()
+    finish = time.time()
+
+    print(f"Ran in: {datetime.timedelta(seconds = (finish-start))}")

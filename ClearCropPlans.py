@@ -12,7 +12,7 @@ def delete_cmd_prompt(directory):
     os.rmdir(directory)
 
 
-# for folder in folder_list:
-#     delete_cmd_prompt(directory=folder)
+for folder in folder_list:
+    delete_cmd_prompt(directory=folder)
 
 os.system('del /q /s /f *.csv > NUL')
