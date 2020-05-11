@@ -5,6 +5,7 @@
 *.shx
 *.prj
 *.cpg
+*.pyc
 NEED BOUNDARY.txt
 No Planned Crops.txt
 archive.py
