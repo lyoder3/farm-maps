@@ -1,0 +1,6 @@
+*.sh*
+*.prj
+*.dbf
+*.csv
+.DS_Store
+.Rhistory
